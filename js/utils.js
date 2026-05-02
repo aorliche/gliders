@@ -1,4 +1,4 @@
-export { $, $$, rotateAboutPoint };
+export { $, $$, randInt, randFloat, rotateAboutPoint };
 
 const $ = q => document.querySelector(q);
 const $$ = q => [...document.querySelectorAll(q)];
@@ -26,3 +26,12 @@ function rotateAboutPoint(obj, point, axis, theta, pointIsWorld = false){
 	obj.rotateOnAxis(axis, theta); // rotate the OBJECT
 }
 
+function randInt(from, to) {
+	const diff = to-from+1;
+	return from + Math.floor(Math.random()*diff);
+}
+
+function randFloat(from, to) {
+	const diff = to-from+1;
+	return from + Math.random()*diff;
+}

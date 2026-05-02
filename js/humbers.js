@@ -1,7 +1,15 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { $, $$, rotateAboutPoint } from './utils.js';
+import { GroundedSkybox } from 'three/addons/objects/GroundedSkybox.js';
+import { $, $$, rotateAboutPoint, randInt, randFloat } from './utils.js';
+
+// Constants
+const HUMBER_SPIN_DIV = 400;
+const TURN_DIV = 50;
+const START_SPEED = 0.02;
+const MIN_SPEED = START_SPEED;
+const MAX_SPEED = 5*START_SPEED;
 
 class Humber {
 	constructor(a, b, geometries, x, y, z, scene) {
@@ -22,6 +30,16 @@ class Humber {
 		this.mesh = new THREE.Mesh(geom, material);
 		this.mesh.position.set(x, y, z);
 		scene.add(this.mesh);
+		/*const edges = new THREE.EdgesGeometry(geom);
+		this.lines = new THREE.LineSegments(
+			edges,
+			new THREE.LineBasicMaterial({
+				color: 0x0000ff,
+				linewidth: 3,
+			}),
+		);
+		this.lines.position.set(x, y, z);
+		scene.add(this.lines);*/
 	}
 
 	tick() {
@@ -29,8 +47,14 @@ class Humber {
 			this.mesh,
 			this.mesh.position.clone(),
 			new THREE.Vector3(0, 1, 0),
-			Math.PI/400,
+			Math.PI/HUMBER_SPIN_DIV,
 		)
+		/*rotateAboutPoint(
+			this.lines,
+			this.lines.position.clone(),
+			new THREE.Vector3(0, 1, 0),
+			Math.PI/HUMBER_SPIN_DIV,
+		)*/
 	}
 }
 
@@ -93,20 +117,56 @@ window.addEventListener('load', e => {
 
 	// Animation loop
 	let added = false;
+	let speed = START_SPEED;
 	function animate(time) {
 		if (!isLoaded()) {
 			return;
 		}
 		if (!added) {
-			humbers.push(new Humber('4', '5', geometries, 3, 0, 3, scene));
-			humbers.push(new Humber('1', '3', geometries, -3, 0, -3, scene));
+			for (let i=0; i < 20; i++) {
+				const a = randInt(0, 9).toString();
+				const b = randInt(0, 9).toString();
+				const x = randFloat(-100, 100);
+				const y = randFloat(-10, 10);
+				const z = randFloat(-100, 100);
+				const humb = new Humber(a, b, geometries, x, y, z, scene);
+				let tooClose = false;
+				for (let j=0; j<humbers.length; j++) {
+					if (humbers[j].mesh.position.distanceTo(humb.mesh.position) < 5) {
+						tooClose = true;
+						break;
+					}
+				}
+				if (tooClose) {
+					i--;
+					continue;
+				}
+				humbers.push(humb);
+			}
 			added = true;
 
+			// Light
 			const light = new THREE.DirectionalLight(0xffffff, 3);
 			light.position.set(5, 0, 5);
 			scene.add(light);
+
+			// Grounded skybox
+			/*const height = 15, radius = 100;
+			const skybox = new GroundedSkybox( envMap, height, radius );
+			skybox.position.y = height;
+			scene.add(skybox);*/
 		}
 		humbers.forEach(h => h.tick());
+
+		// Translate camera
+		const cameraFwd = cameraTarget.clone();
+		cameraFwd.sub(camera.position);
+		cameraFwd.multiplyScalar(1/cameraFwd.length());
+		cameraFwd.multiplyScalar(speed);
+		cameraTarget.add(cameraFwd);
+		const pos = camera.position;
+		camera.position.set(pos.x + cameraFwd.x, pos.y + cameraFwd.y, pos.z + cameraFwd.z);
+		camera.lookAt(cameraTarget);
 
 		renderer.render(scene, camera);
 	}
@@ -121,64 +181,39 @@ window.addEventListener('load', e => {
 		let delta;
 		switch (e.key) {
 			case 'w': 
-				delta = cameraFwd.clone();
-				delta.multiplyScalar(0.2);
-				camera.position.add(delta);
-				cameraTarget.add(delta);
+				cameraFwd.applyAxisAngle(cameraSide, -Math.PI/TURN_DIV);
+				cameraTarget = camera.position.clone().add(cameraFwd);
 				camera.lookAt(cameraTarget);
+				cameraUp.applyAxisAngle(cameraSide, -Math.PI/TURN_DIV);
 				break;
 			case 's':
-				delta = cameraFwd.clone();
-				delta.multiplyScalar(0.2);
-				camera.position.sub(delta);
-				cameraTarget.sub(delta);
+				cameraFwd.applyAxisAngle(cameraSide, Math.PI/TURN_DIV);
+				cameraTarget = camera.position.clone().add(cameraFwd);
 				camera.lookAt(cameraTarget);
+				cameraUp.applyAxisAngle(cameraSide, Math.PI/TURN_DIV);
 				break;
 			case 'a':
-				delta = cameraSide.clone();
-				delta.multiplyScalar(0.2);
-				camera.position.add(delta);
-				cameraTarget.add(delta);
+				cameraFwd.applyAxisAngle(cameraUp, Math.PI/TURN_DIV);
+				cameraTarget = camera.position.clone().add(cameraFwd);
 				camera.lookAt(cameraTarget);
+				cameraSide.applyAxisAngle(cameraUp, Math.PI/TURN_DIV);
 				break;
 			case 'd':
-				delta = cameraSide.clone();
-				delta.multiplyScalar(0.2);
-				camera.position.sub(delta);
-				cameraTarget.sub(delta);
+				cameraFwd.applyAxisAngle(cameraUp, -Math.PI/TURN_DIV);
+				cameraTarget = camera.position.clone().add(cameraFwd);
 				camera.lookAt(cameraTarget);
+				cameraSide.applyAxisAngle(cameraUp, -Math.PI/TURN_DIV);
+				break;
+			case 'ArrowUp':
+				speed += 0.01;
+				if (speed > MAX_SPEED) speed = MAX_SPEED;
+				break;
+			case 'ArrowDown':
+				speed -= 0.01;
+				if (speed < MIN_SPEED) speed = MIN_SPEED;
 				break;
 		}
 
-	});
-
-	// Manual rotation
-	$('#rotate-x').addEventListener('click', e => {
-		e.preventDefault();
-		geometries['PigFace'].rotation.x += Math.PI/4;
-	});
-	$('#rotate-y').addEventListener('click', e => {
-		e.preventDefault();
-		geometries['PigFace'].rotation.y += Math.PI/4;
-	});
-	$('#rotate-z').addEventListener('click', e => {
-		e.preventDefault();
-		geometries['PigFace'].rotation.z += Math.PI/4;
-	});
-
-	$('#zero-out').addEventListener('click', e => {
-		e.preventDefault();
-		const mesh = geometries['PigFace'];
-
-		// Put center of mesh as (0,0,0)
-		/*const box = new THREE.Box3().setFromObject(mesh);
-		const dx = -(box.max.x - box.min.x)/2;
-		const dy = -(box.max.y - box.min.y)/2;
-		const dz = -(box.max.z - box.min.z)/2;
-		mesh.position.set(dx, dy, dz);
-
-		const boxMesh = new THREE.Mesh(new THREE.BoxGeometry(dx*2, dy*2, dz*2), new THREE.MeshBasicMaterial({color: 0x00ff00}));
-		scene.add(boxMesh);*/
 	});
 
 });
