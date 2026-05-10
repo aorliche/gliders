@@ -1,18 +1,20 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { GroundedSkybox } from 'three/addons/objects/GroundedSkybox.js';
 import { $, $$, rotateAboutPoint, randInt, randFloat } from './utils.js';
+import { Label, Bar, HumberList } from './hud.js';
 
 // Constants
 const HUMBER_SPIN_DIV = 400;
-const TURN_DIV = 300;
+const TURN_DIV = 400;
 const SPEED_MULT = 0.01;
 const START_SPEED = 5;
 const MIN_SPEED = 2;
 const MAX_SPEED = 20;
-const PROJECTILE_TICK_LIFETIME = 100;
-const HUMBER_INIT_HEALTH = 20;
+const PROJ_COOLDOWN = 10;
+const PROJ_TICK_LIFETIME = 200;
+const PROJ_SPEED_MULT = 0.5;
+const HUMBER_INIT_HEALTH = 10;
 
 class Humber {
 	constructor(a, b, geometries, x, y, z, scene) {
@@ -36,11 +38,19 @@ class Humber {
 		this.health = HUMBER_INIT_HEALTH;
 	}
 
-	collide(proj) {
-		const bbox = new THREE.Box3().setFromObject(this.mesh);
+	hit(proj) {
+		this.health--;
+		this.mesh.material.emissive.setHex(0x33ff33);
+		this.resetMaterialTick = 10;
 	}
 
 	tick() {
+		if (this.resetMaterialTick > 0) {
+			this.resetMaterialTick--;
+			if (this.resetMaterialTick == 0) {
+				this.mesh.material.emissive.setHex(0xff0000);
+			}
+		}
 		rotateAboutPoint(
 			this.mesh,
 			this.mesh.position.clone(),
@@ -71,7 +81,7 @@ class Projectile {
 		this.p.add(this.dp);
 		this.mesh.position.set(this.p.x, this.p.y, this.p.z);
 		this.ticks++;
-		if (this.ticks > PROJECTILE_TICK_LIFETIME) {
+		if (this.ticks > PROJ_TICK_LIFETIME) {
 			this.mesh.geometry.dispose();
 			this.mesh.material.dispose();
 			this.mesh.parent.remove(this.mesh);
@@ -97,7 +107,7 @@ window.addEventListener('load', e => {
 	}
 
 	function loadModel(name) {
-		const path = `../geometries/${name}.stl`;
+		const path = `../geo/${name}.stl`;
 		numModels++;
 		loader.load(path, geom => {
 			geom.center();
@@ -134,15 +144,106 @@ window.addEventListener('load', e => {
 
 	camera.lookAt(cameraTarget);
 
+	// HUD
+	const hud = $('#hud-canvas');
+	const ctx = hud.getContext('2d');
+	const speedBar = new Bar({
+		label: new Label({
+			text: 'Speed', 
+			font: '20px Arial', 
+			x: 10, 
+			y: canvas.height - 40,
+		}),
+		x: 10,
+		y: canvas.height - 30,
+		width: 200,
+		height: 20,
+		min: MIN_SPEED,
+		max: MAX_SPEED,
+		incr: true,
+		value: START_SPEED,
+	});
+	const healthBar = new Bar({
+		label: new Label({
+			text: 'Health', 
+			font: '20px Arial', 
+			x: 240, 
+			y: canvas.height - 40,
+		}),
+		x: 240,
+		y: canvas.height - 30,
+		width: 200,
+		height: 20,
+		min: 0,
+		max: HUMBER_INIT_HEALTH,
+		incr: true,
+		value: HUMBER_INIT_HEALTH,
+	});
+	const humberList = new HumberList({
+		label: new Label({
+			text: 'Humbers Acquired', 
+			font: '20px Arial', 
+			x: 10, 
+			y: 30,
+		}),
+		x: 10,
+		y: 60,
+		font: '24px HunimalSans',
+		checkerFn: (humbers, idx) => {
+			return humbers[idx] % 2 == 0;
+		},
+		goal: 10,
+	});
+
 	// Actors
 	const humbers = [];
 	const projectiles = [];
-	let prevPos = null;
+	
+	// Keyboard
+	const keyDownMap = {
+		w: false,
+		a: false,
+		s: false,
+		d: false,
+		' ': false,
+		ArrowUp: false,
+		ArrowDown: false,
+	}
+	
+	// Navigation
+	function rotateUp(down) {
+		const cameraFwd = cameraTarget.clone();
+		cameraFwd.sub(camera.position);
+		cameraFwd.multiplyScalar(1/cameraFwd.length());
+
+		const mult = down ? -1 : 1;
+				
+		cameraFwd.applyAxisAngle(cameraSide, -Math.PI/TURN_DIV*mult);
+		cameraTarget = camera.position.clone().add(cameraFwd);
+		camera.lookAt(cameraTarget);
+		cameraUp.applyAxisAngle(cameraSide, -Math.PI/TURN_DIV*mult);
+	}
+	
+	function rotateLeft(right) {
+		const cameraFwd = cameraTarget.clone();
+		cameraFwd.sub(camera.position);
+		cameraFwd.multiplyScalar(1/cameraFwd.length());
+
+		const mult = right ? -1 : 1;
+
+		cameraFwd.applyAxisAngle(cameraUp, Math.PI/TURN_DIV*mult);
+		cameraTarget = camera.position.clone().add(cameraFwd);
+		camera.lookAt(cameraTarget);
+		cameraSide.applyAxisAngle(cameraUp, Math.PI/TURN_DIV*mult);
+	}
+
 
 	// Animation loop
 	let added = false;
 	let speed = START_SPEED;
 	let paused = false;
+	let projCooldown = 0;
+
 	function animate(time) {
 		if (!isLoaded()) {
 			return;
@@ -210,6 +311,7 @@ window.addEventListener('load', e => {
 
 		// If we aren't paused
 		if (!paused) {
+			// Tick projectiles
 			for (let i=0; i<projectiles.length; i++) {
 				const p = projectiles[i];
 				if (p.remove) {
@@ -219,19 +321,84 @@ window.addEventListener('load', e => {
 				} 
 				p.tick();
 			}
-			humbers.forEach(h => h.tick());
+
+			// Tick humbers
+			for (let i=0; i<humbers.length; i++) {
+				const h = humbers[i];
+				if (h.remove) {
+					humbers.splice(i, 1);
+					i--;
+					h.mesh.geometry.dispose();
+					h.mesh.material.dispose();
+					h.mesh.parent.remove(h.mesh);
+					// Update score
+					humberList.humbers.push(h.ab);
+					continue;
+				}
+				h.tick();
+			}
 
 			// Check for collisions with projectiles
-			/*for (let i=0; i<projectiles.length; i++) {
+			for (let i=0; i<projectiles.length; i++) {
 				const p = projectiles[i];
 				for (let j=0; j<humbers.length; j++) {
 					const h = humbers[j];
-					if (p.mesh.position.distanceTo(h.mesh.position) < 1) {
+					if (p.mesh.position.distanceTo(h.mesh.position) < 2.5) {
+						if (p.mesh.parent) {
+							p.mesh.geometry.dispose();
+							p.mesh.material.dispose();
+							p.mesh.parent.remove(p.mesh);
+						}
 						p.remove = true;
-						h.remove = true;
+						h.hit();
+						if (h.health <= 0) {
+							h.remove = true;
+						}
 					}
 				}
-			}*/
+			}
+
+			// Housekeeping
+			if (projCooldown > 0) projCooldown--;
+
+			// Take keyboard events
+			if (keyDownMap['w']) {
+				rotateUp();
+			}
+			if (keyDownMap['s']) {
+				rotateUp(true);
+			}
+			if (keyDownMap['a']) {
+				rotateLeft();
+			}
+			if (keyDownMap['d']) {
+				rotateLeft(true);
+			}
+			if (keyDownMap['ArrowUp']) {
+				speed += 1;
+				if (speed > MAX_SPEED) speed = MAX_SPEED;
+				speedBar.value = speed;
+			}
+			if (keyDownMap['ArrowDown']) {
+				speed -= 1;
+				if (speed < MIN_SPEED) speed = MIN_SPEED;
+				speedBar.value = speed;
+			}
+			if (keyDownMap[' ']) {
+				if (projCooldown <= 0) {
+					const cameraDown = cameraUp.clone();
+					cameraDown.negate();
+					cameraDown.add(camera.position);
+					const cameraFwd = cameraTarget.clone();
+					cameraFwd.sub(camera.position);
+					cameraFwd.multiplyScalar(1/cameraFwd.length());
+					const projTickVec = cameraFwd.clone();
+					projTickVec.multiplyScalar(PROJ_SPEED_MULT);
+					const proj = new Projectile(cameraDown, projTickVec, scene);
+					projectiles.push(proj);
+					projCooldown = PROJ_COOLDOWN;
+				}
+			}
 
 			// Translate camera
 			const cameraFwd = cameraTarget.clone();
@@ -245,46 +412,28 @@ window.addEventListener('load', e => {
 		}
 
 		renderer.render(scene, camera);
+
+		// Draw the crosshair
+		ctx.clearRect(0, 0, hud.width, hud.height);
+
+		ctx.strokeStyle = 'white';
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		ctx.moveTo(canvas.width/2, canvas.height/2-15);
+		ctx.lineTo(canvas.width/2, canvas.height/2+15);
+		ctx.stroke();
+		ctx.beginPath();
+		ctx.moveTo(canvas.width/2-15, canvas.height/2);
+		ctx.lineTo(canvas.width/2+15, canvas.height/2);
+		ctx.stroke();
+
+		speedBar.draw(ctx);
+		healthBar.draw(ctx);
+		humberList.draw(ctx);
 	}
 
 	renderer.setAnimationLoop(animate);
 
-	document.addEventListener('mousemove', e => {
-		// No inputs while paused
-		if (paused) {
-			prevPos = null;
-			return;
-		}
-		if (!prevPos) {
-			prevPos = new THREE.Vector2(e.clientX, e.clientY);
-			return;
-		}
-		const dx = e.clientX - prevPos.x;
-		const dy = e.clientY - prevPos.y;
-		prevPos = new THREE.Vector2(e.clientX, e.clientY);
-
-		// Motion in screen y
-		let cameraFwd = cameraTarget.clone();
-		cameraFwd.sub(camera.position);
-		cameraFwd.multiplyScalar(1/cameraFwd.length());
-
-		cameraFwd.applyAxisAngle(cameraSide, -Math.PI/TURN_DIV*dy);
-		cameraTarget = camera.position.clone().add(cameraFwd);
-		camera.lookAt(cameraTarget);
-		cameraUp.applyAxisAngle(cameraSide, -Math.PI/TURN_DIV*dy);
-	
-		// Motion in screen x
-		cameraFwd = cameraTarget.clone();
-		cameraFwd.sub(camera.position);
-		cameraFwd.multiplyScalar(1/cameraFwd.length());
-
-		cameraFwd.applyAxisAngle(cameraUp, Math.PI/TURN_DIV*dx);
-		cameraTarget = camera.position.clone().add(cameraFwd);
-		camera.lookAt(cameraTarget);
-		cameraSide.applyAxisAngle(cameraUp, Math.PI/TURN_DIV*dx);
-	});
-
-	// Navigation
 	document.addEventListener('keydown', e => {
 		// Don't want to have input while paused
 		// But also want the ability to unpause
@@ -294,33 +443,15 @@ window.addEventListener('load', e => {
 			}
 			return;
 		}
-		const cameraFwd = cameraTarget.clone();
-		cameraFwd.sub(camera.position);
-		cameraFwd.multiplyScalar(1/cameraFwd.length());
-		let delta;
-		// Regular keyboard inputs
-		switch (e.key) {
-			case 'w':
-				speed += 1;
-				if (speed > MAX_SPEED) speed = MAX_SPEED;
-				break;
-			case 's':
-				speed -= 1;
-				if (speed < MIN_SPEED) speed = MIN_SPEED;
-				break;
-			case 'p':
-				paused = !paused;
-				break;
-			case ' ':
-				// We get confused in initial few moments of mouse control
-				const cameraDown = cameraUp.clone();
-				//cameraDown.negate();
-				cameraDown.add(camera.position);
-				const proj = new Projectile(cameraDown, cameraFwd.clone(), scene);
-				projectiles.push(proj);
-				break;
+		if (e.key == 'p') {
+			paused = true;
 		}
+		// Regular keyboard inputs
+		keyDownMap[e.key] = true;
+	});
 
+	document.addEventListener('keyup', e => {
+		keyDownMap[e.key] = false;
 	});
 
 });

@@ -1,9 +1,20 @@
+@font-face {
+	font-family: "HunimalSans";
+	src: url('./../font/HunimalSansv1.5.ttf');
+}
+
 #container {
-	width: 100%;
-	height: 100%;
-	text-align: center;
+	font-family: 'HunimalSans';
 }
 
 #glider-canvas {
 	border: 1px solid black;
+}
+
+#hud-canvas {
+	border: 1px solid black;
+	position: relative;
+	left: -1006px;
+	top: 0px;
+	pointer-events: none;
 }
