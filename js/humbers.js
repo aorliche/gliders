@@ -90,6 +90,139 @@ class Projectile {
 	}
 }
 
+class Level {
+	constructor(params) {
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		ctx.font = '36px Arial';
+		const tm = ctx.measureText(params.text);
+		this.label = new Label({
+			text: params.text, 
+			x: params.width/2 - tm.width/2, 
+			y: params.y,
+			font: '36px Arial',
+		});
+		this.checkerFn = params.checkerFn;
+		this.spawnerFn = params.spawnerFn;
+		this.goal = params.goal;
+	}
+
+	draw(ctx) {
+		this.label.draw(ctx);
+	}
+}
+
+function createArithmeticProgLevel() {
+
+}
+
+const fibs = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+
+const levelStore = {
+	'even': new Level({
+		text: 'Acquire 10 Even Humbers',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			return humbers[idx] % 2 == 0;
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			const a = randInt(0, 9).toString();
+			const b = randInt(0, 9).toString();
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+	'odd': new Level({
+		text: 'Acquire 10 Odd Humbers',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			return humbers[idx] % 2 == 1;
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			const a = randInt(0, 9).toString();
+			const b = randInt(0, 9).toString();
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+	'perfectSquares': new Level({
+		text: 'Acquire 10 Perfect Squares',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			const humb = humbers[idx];
+			const sqrt = Math.round(Math.sqrt(humb));
+			return sqrt*sqrt == humb;
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			let a,b;
+			// Perfect square
+			if (Math.random() > 0.5) {
+				const n = randInt(0, 9);
+				const nn = n*n;
+				a = Math.floor(nn/10).toString();
+				b = (nn%10).toString();
+			// Random number
+			} else {
+				a = randInt(0, 9).toString();
+				b = randInt(0, 9).toString();
+			}
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+	'perfectSquares': new Level({
+		text: 'Acquire 10 Perfect Squares',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			const humb = humbers[idx];
+			const sqrt = Math.round(Math.sqrt(humb));
+			return sqrt*sqrt == humb;
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			let a,b;
+			// Perfect square
+			if (Math.random() > 0.5) {
+				const n = randInt(0, 9);
+				const nn = n*n;
+				a = Math.floor(nn/10).toString();
+				b = (nn%10).toString();
+			// Random number
+			} else {
+				a = randInt(0, 9).toString();
+				b = randInt(0, 9).toString();
+			}
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+};
+
+const levels = [
+	levelStore['even'], 
+	levelStore['odd'],
+	levelStore['perfectSquares'],
+];
+
 window.addEventListener('load', e => {
 	// Load geometries
 	const loader = new STLLoader();
@@ -144,6 +277,9 @@ window.addEventListener('load', e => {
 
 	camera.lookAt(cameraTarget);
 
+	// Level
+	let levelIdx = 0;
+
 	// HUD
 	const hud = $('#hud-canvas');
 	const ctx = hud.getContext('2d');
@@ -190,13 +326,13 @@ window.addEventListener('load', e => {
 		y: 60,
 		font: '24px HunimalSans',
 		checkerFn: (humbers, idx) => {
-			return humbers[idx] % 2 == 0;
+			return levels[levelIdx].checkerFn(humbers, idx);
 		},
-		goal: 10,
+		goal: levels[levelIdx].goal,
 	});
 
 	// Actors
-	const humbers = [];
+	let humbers = [];
 	const projectiles = [];
 	
 	// Keyboard
@@ -249,24 +385,9 @@ window.addEventListener('load', e => {
 			return;
 		}
 		if (!added) {
-			for (let i=0; i < 20; i++) {
-				const a = randInt(0, 9).toString();
-				const b = randInt(0, 9).toString();
-				const x = randFloat(-100, 100);
-				const y = randFloat(-10, 10);
-				const z = randFloat(-100, 100);
-				const humb = new Humber(a, b, geometries, x, y, z, scene);
-				let tooClose = false;
-				for (let j=0; j<humbers.length; j++) {
-					if (humbers[j].mesh.position.distanceTo(humb.mesh.position) < 5) {
-						tooClose = true;
-						break;
-					}
-				}
-				if (tooClose) {
-					i--;
-					continue;
-				}
+			// Initial humbers
+			for (let i=0; i < 40; i++) {
+				const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
 				humbers.push(humb);
 			}
 
@@ -331,8 +452,29 @@ window.addEventListener('load', e => {
 					h.mesh.geometry.dispose();
 					h.mesh.material.dispose();
 					h.mesh.parent.remove(h.mesh);
+					// Create another humber
+					const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
+					humbers.push(humb);
 					// Update score
 					humberList.humbers.push(h.ab);
+					// Update level
+					if (humberList.correct == humberList.goal) {
+						levelIdx = (levelIdx+1) % levels.length;
+						humberList.humbers = [];
+						humberList.goal = levels[levelIdx].goal;
+						// Re-initialize humbers according to new level
+						humbers.forEach(h => {
+							h.mesh.geometry.dispose();
+							h.mesh.material.dispose();
+							h.mesh.parent.remove(h.mesh);
+						});
+						humbers = [];
+						for (let i=0; i < 40; i++) {
+							const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
+							humbers.push(humb);
+						}
+						break;
+					}
 					continue;
 				}
 				h.tick();
@@ -430,6 +572,7 @@ window.addEventListener('load', e => {
 		speedBar.draw(ctx);
 		healthBar.draw(ctx);
 		humberList.draw(ctx);
+		levels[levelIdx].draw(ctx);
 	}
 
 	renderer.setAnimationLoop(animate);

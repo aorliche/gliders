@@ -69,7 +69,7 @@ class HumberList {
 		this.origText = this.label.text;
 	}
 
-	draw(ctx) {
+	get correct() {
 		// Check how many correct humbers we have
 		let nCorrect = 0;
 		for (let i = 0; i < this.humbers.length; i++) {
@@ -77,7 +77,11 @@ class HumberList {
 				nCorrect++;
 			}
 		}
-		this.label.text = `${this.origText} (${nCorrect}/${this.goal})`;
+		return nCorrect;
+	}
+
+	draw(ctx) {
+		this.label.text = `${this.origText} (${this.correct}/${this.goal})`;
 		this.label.draw(ctx);
 		ctx.font = this.font;
 		let x = this.x;
