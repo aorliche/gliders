@@ -6,7 +6,7 @@ import { Label, Bar, HumberList, CounterLabel, Button } from './hud.js';
 
 // Constants
 const HUMBER_SPIN_DIV = 400;
-const TURN_DIV = 400;
+const TURN_DIV = 200;
 const SPEED_MULT = 0.01;
 const START_SPEED = 5;
 const MIN_SPEED = 2;
@@ -20,6 +20,7 @@ const GLIDER_SPEED_MULT = 0.1;
 const GLIDER_TURN_DIV = 500;
 const GLIDER_COOLDOWN = 100;
 const PLAYER_INIT_HEALTH = 30;
+const HEAL_INCREMENT = 5;
 
 // Enemy
 class Glider {
@@ -68,7 +69,9 @@ class Glider {
 
 	// Rotate X tilts on its side (never use)
 	// Rotate Y rotates around (patrolling)
-	// Rotate Z tilts up and down (positive = tilt up)
+	// Rotate Z tilts up and down (positive = tilt up) (not used)
+	// Actually none of these are used
+	// Turn about local Y axis unless attacking the player, in which case go straight
 	tick() {
 		const fwd = this.forwardMesh.position.clone();
 		const pos = this.mesh.position.clone();
@@ -104,12 +107,46 @@ class Glider {
 	}
 }
 
+class PigFace {
+	constructor(geometries, x, y, z, scene) {
+		const geom = geometries['PigFace'];
+		const material = new THREE.MeshPhongMaterial({
+			emissive: 0xff0000,
+		});
+		this.mesh = new THREE.Mesh(geom, material);
+		this.mesh.position.set(x, y, z);
+		scene.add(this.mesh);
+		this.health = HUMBER_INIT_HEALTH;
+	}
+
+	hit() {
+		this.health--;
+		this.mesh.material.emissive.setHex(0x33ff33);
+		this.resetMaterialTick = 10;
+	}
+	
+	tick() {
+		if (this.resetMaterialTick > 0) {
+			this.resetMaterialTick--;
+			if (this.resetMaterialTick == 0) {
+				this.mesh.material.emissive.setHex(0xff0000);
+			}
+		}
+		rotateAboutPoint(
+			this.mesh,
+			this.mesh.position.clone(),
+			new THREE.Vector3(0, 1, 0),
+			Math.PI/HUMBER_SPIN_DIV,
+		)
+	}
+}
+
 class Humber {
 	constructor(a, b, geometries, x, y, z, scene) {
 		this.a = parseInt(a);
 		this.b = parseInt(b);
 		this.ab = this.a*10 + this.b;
-		this.x = x;
+		this.x = x; // not used...
 		this.y = y;
 		this.z = z;
 		const geomA = geometries[a].clone();
@@ -124,6 +161,7 @@ class Humber {
 		this.mesh.position.set(x, y, z);
 		scene.add(this.mesh);
 		this.health = HUMBER_INIT_HEALTH;
+		this.resetMaterialTick = 0;
 	}
 
 	hit() {
@@ -493,6 +531,7 @@ window.addEventListener('load', e => {
 	let humbers = [];
 	const projectiles = [];
 	const gliders = [];
+	const faces = [];
 
 	// Keyboard
 	const keyDownMap = {
@@ -580,6 +619,19 @@ window.addEventListener('load', e => {
 				humbers.push(humb);
 			}
 
+			// Initial pig faces
+			for (let i=0; i < 15; i++) {
+				const face = new PigFace(
+					geometries, 
+					randFloat(-200, 200),
+					randFloat(-20, 20),
+					randFloat(-200, 200),
+					scene,
+				);
+				faces.push(face);
+			}
+
+
 			// Light
 			const light = new THREE.DirectionalLight(0xffffff, 3);
 			light.position.set(-1000, 50, 0);
@@ -656,6 +708,29 @@ window.addEventListener('load', e => {
 				h.tick();
 			}
 
+			// Tick Pig Faces
+			for (let i=0; i<faces.length; i++) {
+				const f = faces[i];
+				if (f.remove) {
+					faces.splice(i, 1);
+					i--;
+					f.mesh.geometry.dispose();
+					f.mesh.material.dispose();
+					f.mesh.parent.remove(f.mesh);
+					// Create another face
+					const face = new PigFace(
+						geometries, 
+						randFloat(-200, 200),
+						randFloat(-20, 20),
+						randFloat(-200, 200),
+						scene,
+					);
+					faces.push(face);
+					continue;
+				}
+				f.tick();
+			}
+
 			// Tick gliders
 			for (let i=0; i<gliders.length; i++) {
 				const g = gliders[i];
@@ -723,6 +798,26 @@ window.addEventListener('load', e => {
 			for (let i=0; i<projectiles.length; i++) {
 				const p = projectiles[i];
 				if (p.fromPlayer) {
+					// Pig faces
+					for (let j=0; j<faces.length; j++) {
+						const f = faces[j];
+						if (p.mesh.position.distanceTo(f.mesh.position) < 2.5) {
+							if (p.mesh.parent) {
+								p.mesh.geometry.dispose();
+								p.mesh.material.dispose();
+								p.mesh.parent.remove(p.mesh);
+							}
+							p.remove = true;
+							f.hit();
+							if (f.health <= 0) {
+								f.remove = true;
+								healthBar.value += HEAL_INCREMENT;
+								if (healthBar.value > healthBar.max) {
+									healthBar.value = healthBar.max;
+								}
+							}
+						}
+					}
 					// Humbers
 					for (let j=0; j<humbers.length; j++) {
 						const h = humbers[j];
@@ -859,12 +954,14 @@ window.addEventListener('load', e => {
 		// But also want the ability to unpause
 		if (paused) {
 			if (e.key === 'p') {
-				paused = false;
+				//paused = false;
+				pauseButton.click({x: pauseButton.x+1, y: pauseButton.y+1});
 			}
 			return;
 		}
 		if (e.key == 'p') {
-			paused = true;
+			//paused = true;
+			pauseButton.click({x: pauseButton.x+1, y: pauseButton.y+1});
 		}
 		// Regular keyboard inputs
 		keyDownMap[e.key] = true;
