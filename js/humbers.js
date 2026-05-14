@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { $, $$, rotateAboutPoint, randInt, randFloat } from './utils.js';
-import { Label, Bar, HumberList } from './hud.js';
+import { Label, Bar, HumberList, CounterLabel } from './hud.js';
 
 // Constants
 const HUMBER_SPIN_DIV = 400;
@@ -12,9 +12,97 @@ const START_SPEED = 5;
 const MIN_SPEED = 2;
 const MAX_SPEED = 20;
 const PROJ_COOLDOWN = 10;
-const PROJ_TICK_LIFETIME = 200;
+const PROJ_TICK_LIFETIME = 500;
 const PROJ_SPEED_MULT = 0.5;
 const HUMBER_INIT_HEALTH = 10;
+const GLIDER_INIT_HEALTH = 5;
+const GLIDER_SPEED_MULT = 0.1;
+const GLIDER_TURN_DIV = 500;
+const GLIDER_COOLDOWN = 100;
+const PLAYER_INIT_HEALTH = 30;
+
+// Enemy
+class Glider {
+	constructor(geometries, x, y, z, scene) {
+		const geom = geometries['Glider'].clone();
+		const material = new THREE.MeshPhongMaterial({
+			emissive: 0x8833ff,
+		});
+		this.mesh = new THREE.Mesh(geom, material);
+		this.mesh.position.set(x, y, z);
+		scene.add(this.mesh);
+		const theta = randFloat(-Math.PI, Math.PI);
+		rotateAboutPoint(
+			this.mesh,
+			this.mesh.position.clone(),
+			new THREE.Vector3(0, 1, 0),
+			theta,
+		);
+		// Create the forward vector as a mesh that can be rotated
+		const forward = new THREE.Vector3(1, 0, 0);
+		forward.add(this.mesh.position);
+		const forwardGeom = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+		const forwardMaterial = new THREE.MeshBasicMaterial({});
+		this.forwardMesh = new THREE.Mesh(forwardGeom, forwardMaterial);
+		this.forwardMesh.position.set(forward.x, forward.y, forward.z);
+		rotateAboutPoint(
+			this.forwardMesh,
+			this.mesh.position.clone(),
+			new THREE.Vector3(0, 1, 0),
+			theta,
+		);
+		this.defaultTurnAngle = Math.random() > 0.5 ? 1 : -1;
+		this.defaultTurnAngle *= Math.PI/GLIDER_TURN_DIV;
+		// Stats
+		this.health = GLIDER_INIT_HEALTH;
+		this.attacking = false;
+		this.cooldown = 0;
+		this.resetMaterialTick = 0;
+	}
+
+	hit() {
+		this.health--;
+		this.mesh.material.emissive.setHex(0x33ff33);
+		this.resetMaterialTick = 10;
+	}
+
+	// Rotate X tilts on its side (never use)
+	// Rotate Y rotates around (patrolling)
+	// Rotate Z tilts up and down (positive = tilt up)
+	tick() {
+		const fwd = this.forwardMesh.position.clone();
+		const pos = this.mesh.position.clone();
+		fwd.sub(pos);
+		fwd.multiplyScalar(1/fwd.length());
+		fwd.multiplyScalar(GLIDER_SPEED_MULT);
+		this.mesh.position.add(fwd);
+		this.forwardMesh.position.add(fwd);
+		// Turn
+		if (!this.attacking) {
+			rotateAboutPoint(
+				this.mesh,
+				this.mesh.position.clone(),
+				new THREE.Vector3(0, 1, 0),
+				this.defaultTurnAngle,
+			)
+			rotateAboutPoint(
+				this.forwardMesh,
+				this.mesh.position.clone(),
+				new THREE.Vector3(0, 1, 0),
+				this.defaultTurnAngle,
+			)
+		}
+		if (this.cooldown > 0) {
+			this.cooldown--;
+		}
+		if (this.resetMaterialTick > 0) {
+			this.resetMaterialTick--;
+			if (this.resetMaterialTick == 0) {
+				this.mesh.material.emissive.setHex(0x8833ff);
+			}
+		}
+	}
+}
 
 class Humber {
 	constructor(a, b, geometries, x, y, z, scene) {
@@ -38,7 +126,7 @@ class Humber {
 		this.health = HUMBER_INIT_HEALTH;
 	}
 
-	hit(proj) {
+	hit() {
 		this.health--;
 		this.mesh.material.emissive.setHex(0x33ff33);
 		this.resetMaterialTick = 10;
@@ -63,7 +151,7 @@ class Humber {
 class Projectile {
 	// p is a vector of current position
 	// dp is a vector to add every tick to current position
-	constructor(p, dp, scene) {
+	constructor(p, dp, scene, fromPlayer) {
 		this.p = p;
 		this.dp = dp;
 		const geom = new THREE.BoxGeometry(0.2, 0.2, 0.2);
@@ -75,13 +163,14 @@ class Projectile {
 		scene.add(this.mesh);
 		this.ticks = 0;
 		this.remove = false;
+		this.fromPlayer = fromPlayer ?? false;
 	}
 
 	tick() {
 		this.p.add(this.dp);
 		this.mesh.position.set(this.p.x, this.p.y, this.p.z);
 		this.ticks++;
-		if (this.ticks > PROJ_TICK_LIFETIME) {
+		if (this.ticks > PROJ_TICK_LIFETIME && this.mesh.parent) {
 			this.mesh.geometry.dispose();
 			this.mesh.material.dispose();
 			this.mesh.parent.remove(this.mesh);
@@ -233,6 +322,7 @@ window.addEventListener('load', e => {
 		return n.toString();
 	});
 	geoKeys.push('PigFace');
+	geoKeys.push('Glider');
 	const geometries = {};
 
 	function isLoaded() {
@@ -310,10 +400,10 @@ window.addEventListener('load', e => {
 		y: canvas.height - 30,
 		width: 200,
 		height: 20,
-		min: 0,
-		max: HUMBER_INIT_HEALTH,
+		min: 1,
+		max: PLAYER_INIT_HEALTH,
 		incr: true,
-		value: HUMBER_INIT_HEALTH,
+		value: PLAYER_INIT_HEALTH,
 	});
 	const humberList = new HumberList({
 		label: new Label({
@@ -330,11 +420,26 @@ window.addEventListener('load', e => {
 		},
 		goal: levels[levelIdx].goal,
 	});
+	const gliderKills = new CounterLabel({
+		text: 'Gliders Killed: ',
+		font: '20px Arial',
+		x: 820,
+		y: canvas.height - 20,
+		count: 0,
+	});
+	const levelLabel = new CounterLabel({
+		text: 'Level: ',
+		font: '20px Arial',
+		x: 700,
+		y: canvas.height - 20,
+		count: 1,
+	});
 
 	// Actors
 	let humbers = [];
 	const projectiles = [];
-	
+	const gliders = [];
+
 	// Keyboard
 	const keyDownMap = {
 		w: false,
@@ -379,12 +484,25 @@ window.addEventListener('load', e => {
 	let speed = START_SPEED;
 	let paused = false;
 	let projCooldown = 0;
+	let dead = false;
 
 	function animate(time) {
 		if (!isLoaded()) {
 			return;
 		}
 		if (!added) {
+			// Add gliders
+			for (let i=0; i<15; i++) {
+				const glider = new Glider(
+					geometries,
+					randFloat(-200, 200),
+					randFloat(-20, 20),
+					randFloat(-200, 200),
+					scene,
+				);
+				gliders.push(glider);
+			}
+
 			// Initial humbers
 			for (let i=0; i < 40; i++) {
 				const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
@@ -431,7 +549,7 @@ window.addEventListener('load', e => {
 		}
 
 		// If we aren't paused
-		if (!paused) {
+		if (!paused && !dead) {
 			// Tick projectiles
 			for (let i=0; i<projectiles.length; i++) {
 				const p = projectiles[i];
@@ -460,6 +578,7 @@ window.addEventListener('load', e => {
 					// Update level
 					if (humberList.correct == humberList.goal) {
 						levelIdx = (levelIdx+1) % levels.length;
+						levelLabel.count = levelIdx+1;
 						humberList.humbers = [];
 						humberList.goal = levels[levelIdx].goal;
 						// Re-initialize humbers according to new level
@@ -480,21 +599,118 @@ window.addEventListener('load', e => {
 				h.tick();
 			}
 
+			// Tick gliders
+			for (let i=0; i<gliders.length; i++) {
+				const g = gliders[i];
+				g.tick();
+				// Check remove
+				if (g.remove) {
+					gliders.splice(i, 1);
+					i--;
+					g.mesh.geometry.dispose();
+					g.mesh.material.dispose();
+					g.mesh.parent.remove(g.mesh);
+					g.forwardMesh.geometry.dispose();
+					g.forwardMesh.material.dispose();
+					// g.forwardMesh is not added to scene
+					// Create a new glider
+					const glider = new Glider(
+						geometries,
+						randFloat(-200, 200),
+						randFloat(-20, 20),
+						randFloat(-200, 200),
+						scene,
+					);
+					gliders.push(glider);
+						continue;
+					}
+				// Fire if facing player
+				// Glider forward unit vector
+				const gliderFwd = g.forwardMesh.position.clone();
+				gliderFwd.sub(g.mesh.position);
+				gliderFwd.multiplyScalar(1/gliderFwd.length());
+				// Player forward unit vector
+				const cameraFwd = cameraTarget.clone();
+				cameraFwd.sub(camera.position);
+				cameraFwd.multiplyScalar(1/cameraFwd.length()); 
+				// Vector from player to glider
+				const gliderPos = g.mesh.position.clone();
+				gliderPos.sub(camera.position);
+				gliderPos.multiplyScalar(1/gliderPos.length());
+				// Dot products
+				// Gliders will only shoot when you are facing them and they are facing you
+				const facingDot = gliderFwd.dot(cameraFwd);
+				const posDot = gliderFwd.dot(gliderPos);
+				if (facingDot < -0.8 && posDot < -0.8) {
+					g.attacking = true;
+					// Fire projectile
+					// Note negative sign
+					if (g.cooldown == 0) {
+						const projTickVec = gliderPos.clone();
+						projTickVec.multiplyScalar(-PROJ_SPEED_MULT);
+						const proj = new Projectile(
+							g.mesh.position.clone(), 
+							projTickVec, 
+							scene, 
+							false
+						);
+						projectiles.push(proj);
+						g.cooldown = GLIDER_COOLDOWN;
+					}
+				} else {
+					g.attacking = false;
+				}
+			}
+
 			// Check for collisions with projectiles
 			for (let i=0; i<projectiles.length; i++) {
 				const p = projectiles[i];
-				for (let j=0; j<humbers.length; j++) {
-					const h = humbers[j];
-					if (p.mesh.position.distanceTo(h.mesh.position) < 2.5) {
+				if (p.fromPlayer) {
+					// Humbers
+					for (let j=0; j<humbers.length; j++) {
+						const h = humbers[j];
+						if (p.mesh.position.distanceTo(h.mesh.position) < 2.5) {
+							if (p.mesh.parent) {
+								p.mesh.geometry.dispose();
+								p.mesh.material.dispose();
+								p.mesh.parent.remove(p.mesh);
+							}
+							p.remove = true;
+							h.hit();
+							if (h.health <= 0) {
+								h.remove = true;
+							}
+						}
+					}
+					// Gliders
+					for (let j=0; j<gliders.length; j++) {
+						const g = gliders[j];
+						if (p.mesh.position.distanceTo(g.mesh.position) < 2.5) {
+							if (p.mesh.parent) {
+								p.mesh.geometry.dispose();
+								p.mesh.material.dispose();
+								p.mesh.parent.remove(p.mesh);
+							}
+							p.remove = true;
+							g.hit();
+							if (g.health <= 0) {
+								g.remove = true;
+								gliderKills.count++;
+							}
+						}
+					}
+				} else {
+					// From gliders
+					if (p.mesh.position.distanceTo(camera.position) < 2) {
 						if (p.mesh.parent) {
 							p.mesh.geometry.dispose();
 							p.mesh.material.dispose();
 							p.mesh.parent.remove(p.mesh);
 						}
 						p.remove = true;
-						h.hit();
-						if (h.health <= 0) {
-							h.remove = true;
+						healthBar.value--;
+						if (healthBar.value == 0) {
+							dead = true;
 						}
 					}
 				}
@@ -536,7 +752,7 @@ window.addEventListener('load', e => {
 					cameraFwd.multiplyScalar(1/cameraFwd.length());
 					const projTickVec = cameraFwd.clone();
 					projTickVec.multiplyScalar(PROJ_SPEED_MULT);
-					const proj = new Projectile(cameraDown, projTickVec, scene);
+					const proj = new Projectile(cameraDown, projTickVec, scene, true);
 					projectiles.push(proj);
 					projCooldown = PROJ_COOLDOWN;
 				}
@@ -573,6 +789,8 @@ window.addEventListener('load', e => {
 		healthBar.draw(ctx);
 		humberList.draw(ctx);
 		levels[levelIdx].draw(ctx);
+		gliderKills.draw(ctx);
+		levelLabel.draw(ctx);
 	}
 
 	renderer.setAnimationLoop(animate);

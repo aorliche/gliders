@@ -1,5 +1,5 @@
 // Functions for drawing the hud
-export {Label, Bar, HumberList};
+export {Label, Bar, HumberList, CounterLabel};
 
 class Label {
 	constructor(params) {
@@ -13,6 +13,28 @@ class Label {
 		ctx.font = this.font;
 		ctx.fillStyle = 'white';
 		ctx.fillText(this.text, this.x, this.y);
+	}
+}
+
+class CounterLabel extends Label {
+	constructor(params) {
+		super(params);
+		this.baseText = this.text;
+		this._count = params.count ?? 0;
+		this.makeText();
+	}
+
+	get count() {
+		return this._count;
+	}
+
+	set count(val) {
+		this._count = val;
+		this.makeText();
+	}
+
+	makeText() {
+		this.text = this.baseText + " " + this._count.toString();
 	}
 }
 
