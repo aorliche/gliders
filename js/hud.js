@@ -1,5 +1,5 @@
 // Functions for drawing the hud
-export {Label, Bar, HumberList, CounterLabel};
+export {Label, Bar, HumberList, CounterLabel, Button};
 
 class Label {
 	constructor(params) {
@@ -7,11 +7,12 @@ class Label {
 		this.font = params.font;
 		this.x = params.x;
 		this.y = params.y;
+		this.color = params.color ?? 'white';
 	}
 
 	draw(ctx) {
 		ctx.font = this.font;
-		ctx.fillStyle = 'white';
+		ctx.fillStyle = this.color;
 		ctx.fillText(this.text, this.x, this.y);
 	}
 }
@@ -35,6 +36,49 @@ class CounterLabel extends Label {
 
 	makeText() {
 		this.text = this.baseText + " " + this._count.toString();
+	}
+}
+
+class Button {
+	constructor(params) {
+		this.label = params.label;
+		this.labelColorSav = this.label.color;
+		this.color = params.color;
+		this.colorSav = this.color;
+		this.x = params.x;
+		this.y = params.y;
+		this.w = params.w;
+		this.h = params.h;
+		this.click = params.click;
+		this.hovering = false;
+	}
+
+	mousemove(p) {
+		if (p.x < this.x || 
+			p.x > this.x + this.w || 
+			p.y < this.y ||
+			p.y > this.y + this.h) {
+			if (this.hovering) {
+				this.mouseout();
+			}
+		} else {
+			this.label.color = this.colorSav;
+			this.color = this.labelColorSav;
+			this.hovering = true;
+		}
+	}
+
+	mouseout(p) {
+		this.label.color = this.labelColorSav;
+		this.color = this.colorSav;
+	}
+
+	draw(ctx) {
+		ctx.fillStyle = this.color;
+		ctx.fillRect(this.x, this.y, this.w, this.h);
+		ctx.strokeStyle = this.label.color;
+		ctx.strokeRect(this.x, this.y, this.w, this.h);
+		this.label.draw(ctx);
 	}
 }
 

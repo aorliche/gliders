@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { $, $$, rotateAboutPoint, randInt, randFloat } from './utils.js';
-import { Label, Bar, HumberList, CounterLabel } from './hud.js';
+import { Label, Bar, HumberList, CounterLabel, Button } from './hud.js';
 
 // Constants
 const HUMBER_SPIN_DIV = 400;
@@ -434,6 +434,60 @@ window.addEventListener('load', e => {
 		y: canvas.height - 20,
 		count: 1,
 	});
+	const nextLevelButton = new Button({
+		label: new Label({
+			text: 'Next Level',
+			font: '20px Arial',
+			x: 880,
+			y: 33,
+			color: 'white',
+		}),
+		color: '#8888ff',
+		x: 872,
+		y: 10,
+		w: 112,
+		h: 35,
+		click: (p) => {
+			if (p.x < nextLevelButton.x || 
+				p.x > nextLevelButton.x + nextLevelButton.w || 
+				p.y < nextLevelButton.y ||
+				p.y > nextLevelButton.y + nextLevelButton.h) {
+				return;
+			}
+			nextLevel();
+		},
+	});
+	const pauseButton = new Button({
+		label: new Label({
+			text: 'Pause',
+			font: '20px Arial',
+			x: 780,
+			y: 33,
+			color: 'white',
+		}),
+		color: '#ff8888',
+		x: 763,
+		y: 10,
+		w: 95,
+		h: 35,
+		click: (p) => {
+			if (p.x < pauseButton.x || 
+				p.x > pauseButton.x + pauseButton.w || 
+				p.y < pauseButton.y ||
+				p.y > pauseButton.y + pauseButton.h) {
+				return;
+			}
+			if (!paused) {
+				paused = true;
+				pauseButton.label.text = 'Unpause';
+				pauseButton.label.x = 770;
+			} else {
+				paused = false;
+				pauseButton.label.text = 'Pause';
+				pauseButton.label.x = 780;
+			}
+		},
+	});
 
 	// Actors
 	let humbers = [];
@@ -478,6 +532,23 @@ window.addEventListener('load', e => {
 		cameraSide.applyAxisAngle(cameraUp, Math.PI/TURN_DIV*mult);
 	}
 
+	function nextLevel() {
+		levelIdx = (levelIdx+1) % levels.length;
+		levelLabel.count = levelIdx+1;
+		humberList.humbers = [];
+		humberList.goal = levels[levelIdx].goal;
+		// Re-initialize humbers according to new level
+		humbers.forEach(h => {
+			h.mesh.geometry.dispose();
+			h.mesh.material.dispose();
+			h.mesh.parent.remove(h.mesh);
+		});
+		humbers = [];
+		for (let i=0; i < 40; i++) {
+			const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
+			humbers.push(humb);
+		}
+	}
 
 	// Animation loop
 	let added = false;
@@ -577,21 +648,7 @@ window.addEventListener('load', e => {
 					humberList.humbers.push(h.ab);
 					// Update level
 					if (humberList.correct == humberList.goal) {
-						levelIdx = (levelIdx+1) % levels.length;
-						levelLabel.count = levelIdx+1;
-						humberList.humbers = [];
-						humberList.goal = levels[levelIdx].goal;
-						// Re-initialize humbers according to new level
-						humbers.forEach(h => {
-							h.mesh.geometry.dispose();
-							h.mesh.material.dispose();
-							h.mesh.parent.remove(h.mesh);
-						});
-						humbers = [];
-						for (let i=0; i < 40; i++) {
-							const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
-							humbers.push(humb);
-						}
+						nextLevel();
 						break;
 					}
 					continue;
@@ -791,6 +848,8 @@ window.addEventListener('load', e => {
 		levels[levelIdx].draw(ctx);
 		gliderKills.draw(ctx);
 		levelLabel.draw(ctx);
+		nextLevelButton.draw(ctx);
+		pauseButton.draw(ctx);
 	}
 
 	renderer.setAnimationLoop(animate);
@@ -813,6 +872,24 @@ window.addEventListener('load', e => {
 
 	document.addEventListener('keyup', e => {
 		keyDownMap[e.key] = false;
+	});
+
+	canvas.addEventListener('click', e => {
+		const p = {x: e.offsetX, y: e.offsetY};
+		nextLevelButton.click(p);
+		pauseButton.click(p);
+	});
+
+	canvas.addEventListener('mousemove', e => {
+		const p = {x: e.offsetX, y: e.offsetY};
+		nextLevelButton.mousemove(p);
+		pauseButton.mousemove(p);
+	});
+
+	canvas.addEventListener('mouseout', () => {
+		nextLevelButton.mouseout();
+		pauseButton.mouseout();
+
 	});
 
 });
