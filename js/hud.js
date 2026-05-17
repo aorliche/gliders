@@ -1,5 +1,5 @@
 // Functions for drawing the hud
-export {Label, Bar, HumberList, CounterLabel, Button};
+export {Label, Bar, HumberList, CounterLabel, Button, DamageOverlay};
 
 class Label {
 	constructor(params) {
@@ -163,6 +163,39 @@ class HumberList {
 			ctx.fillText(humberStr, x, y);
 			const tm = ctx.measureText(humberStr);
 			x += tm.width + 5;
+		}
+	}
+}
+
+class DamageOverlay {
+	constructor(params) {
+		this.w = params.w;
+		this.h = params.h;
+		this.len = params.len;
+		this.cooldown = params.cooldown ?? 0;
+	}
+
+	draw(ctx) {
+		if (this.cooldown <= 0) {
+			return;
+		}
+
+		const g1 = ctx.createLinearGradient(0, this.h/2, this.len, this.h/2);
+		const g2 = ctx.createLinearGradient(this.w, this.h/2, this.w-this.len, this.h/2);
+		const g3 = ctx.createLinearGradient(this.w/2, 0, this.w/2, this.len);
+		const g4 = ctx.createLinearGradient(this.w/2, this.h, this.w/2, this.h-this.len);
+
+		[g1, g2, g3, g4].forEach(g => {
+			g.addColorStop(0, "rgba(255,0,0,0.5)");
+			g.addColorStop(1, "transparent");
+			ctx.fillStyle = g;
+			ctx.fillRect(0, 0, this.w, this.h);
+		});
+	}
+
+	tick() {
+		if (this.cooldown > 0) {
+			this.cooldown--;
 		}
 	}
 }

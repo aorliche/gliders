@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
-import { $, $$, rotateAboutPoint, randInt, randFloat } from './utils.js';
-import { Label, Bar, HumberList, CounterLabel, Button } from './hud.js';
+import { $, $$, rotateAboutPoint, randInt, randFloat, chooseRandom } from './utils.js';
+import { Label, Bar, HumberList, CounterLabel, Button, DamageOverlay } from './hud.js';
 
 // Constants
 const HUMBER_SPIN_DIV = 400;
@@ -19,7 +19,7 @@ const GLIDER_INIT_HEALTH = 5;
 const GLIDER_SPEED_MULT = 0.1;
 const GLIDER_TURN_DIV = 500;
 const GLIDER_COOLDOWN = 100;
-const PLAYER_INIT_HEALTH = 30;
+const PLAYER_INIT_HEALTH = 20;
 const HEAL_INCREMENT = 5;
 
 // Enemy
@@ -146,7 +146,7 @@ class Humber {
 		this.a = parseInt(a);
 		this.b = parseInt(b);
 		this.ab = this.a*10 + this.b;
-		this.x = x; // not used...
+		this.x = x; // not used... I think...
 		this.y = y;
 		this.z = z;
 		const geomA = geometries[a].clone();
@@ -239,11 +239,31 @@ class Level {
 	}
 }
 
-function createArithmeticProgLevel() {
+class DeadLabel {
+	constructor(params) {
+		const canvas = document.createElement('canvas');
+		const ctx = canvas.getContext('2d');
+		ctx.font = '36px Arial';
+		const tm = ctx.measureText(params.text);
+		this.label = new Label({
+			text: params.text, 
+			x: params.width/2 - tm.width/2, 
+			y: params.y,
+			font: '36px Arial',
+		});
+	}
 
+	draw(ctx) {
+		this.label.draw(ctx);
+	}
 }
 
 const fibs = [0, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+const primes = [2, 3, 5, 7, 11, 13, 17, 19, 23, 27, 29, 31, 37, 41, 43, 47, 51, 53, 
+	57, 59, 61, 67, 71, 73, 79, 83, 87, 89, 91, 97];
+const powersOfTwo = [1, 2, 4, 8, 16, 32, 64];
+const triangulars = [0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91];
+const fourFactors = [16, 24, 32, 36, 40, 48, 54, 56, 60, 64, 72, 80, 81, 84, 88, 90, 96, 98];
 
 const levelStore = {
 	'even': new Level({
@@ -312,23 +332,133 @@ const levelStore = {
 		},
 		goal: 10,
 	}),
-	'perfectSquares': new Level({
-		text: 'Acquire 10 Perfect Squares',
+	'primes': new Level({
+		text: 'Acquire 10 Primes',
 		width: 1000,
 		y: 100,
 		checkerFn: (humbers, idx) => {
 			const humb = humbers[idx];
-			const sqrt = Math.round(Math.sqrt(humb));
-			return sqrt*sqrt == humb;
+			return primes.includes(humb);
 		},
 		spawnerFn: (humbers, geometries, scene) => {
 			let a,b;
-			// Perfect square
+			// Prime
 			if (Math.random() > 0.5) {
-				const n = randInt(0, 9);
-				const nn = n*n;
-				a = Math.floor(nn/10).toString();
-				b = (nn%10).toString();
+				const n = chooseRandom(primes);
+				a = Math.floor(n/10).toString();
+				b = (n%10).toString();
+			// Random number
+			} else {
+				a = randInt(0, 9).toString();
+				b = randInt(0, 9).toString();
+			}
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+	'fibs': new Level({
+		text: 'Acquire 10 Fibonacci Numbers',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			const humb = humbers[idx];
+			return fibs.includes(humb);
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			let a,b;
+			// Fibonacci
+			if (Math.random() > 0.5) {
+				const n = chooseRandom(fibs);
+				a = Math.floor(n/10).toString();
+				b = (n%10).toString();
+			// Random number
+			} else {
+				a = randInt(0, 9).toString();
+				b = randInt(0, 9).toString();
+			}
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+	'powersOfTwo': new Level({
+		text: 'Acquire 10 Powers of Two',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			const humb = humbers[idx];
+			return powersOfTwo.includes(humb);
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			let a,b;
+			// Power of two
+			if (Math.random() > 0.5) {
+				const n = chooseRandom(powersOfTwo);
+				a = Math.floor(n/10).toString();
+				b = (n%10).toString();
+			// Random number
+			} else {
+				a = randInt(0, 9).toString();
+				b = randInt(0, 9).toString();
+			}
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+	triangulars: new Level({
+		text: 'Acquire 10 Triangular Numbers',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			const humb = humbers[idx];
+			return triangulars.includes(humb);
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			let a,b;
+			// Triangular
+			if (Math.random() > 0.5) {
+				const n = chooseRandom(triangulars);
+				a = Math.floor(n/10).toString();
+				b = (n%10).toString();
+			// Random number
+			} else {
+				a = randInt(0, 9).toString();
+				b = randInt(0, 9).toString();
+			}
+			const x = randFloat(-200, 200);
+			const y = randFloat(-20, 20);
+			const z = randFloat(-200, 200);
+			const humb = new Humber(a, b, geometries, x, y, z, scene);
+			return humb;
+		},
+		goal: 10,
+	}),
+	fourFactors: new Level({
+		text: 'Acquire 10 Numbers With Four Prime Factors',
+		width: 1000,
+		y: 100,
+		checkerFn: (humbers, idx) => {
+			const humb = humbers[idx];
+			return fourFactors.includes(humb);
+		},
+		spawnerFn: (humbers, geometries, scene) => {
+			let a,b;
+			// Four factors
+			if (Math.random() > 0.5) {
+				const n = chooseRandom(fourFactors);
+				a = Math.floor(n/10).toString();
+				b = (n%10).toString();
 			// Random number
 			} else {
 				a = randInt(0, 9).toString();
@@ -348,6 +478,11 @@ const levels = [
 	levelStore['even'], 
 	levelStore['odd'],
 	levelStore['perfectSquares'],
+	levelStore['primes'],
+	levelStore['fibs'],
+	levelStore['powersOfTwo'],
+	levelStore['triangulars'],
+	levelStore['fourFactors'],
 ];
 
 window.addEventListener('load', e => {
@@ -468,7 +603,7 @@ window.addEventListener('load', e => {
 	const levelLabel = new CounterLabel({
 		text: 'Level: ',
 		font: '20px Arial',
-		x: 700,
+		x: 710,
 		y: canvas.height - 20,
 		count: 1,
 	});
@@ -503,7 +638,7 @@ window.addEventListener('load', e => {
 			y: 33,
 			color: 'white',
 		}),
-		color: '#ff8888',
+		color: '#ff6666',
 		x: 763,
 		y: 10,
 		w: 95,
@@ -526,6 +661,74 @@ window.addEventListener('load', e => {
 			}
 		},
 	});
+	const playAudioButton = new Button({
+		label: new Label({
+			text: 'Stop Audio',
+			font: '20px Arial',
+			x: 640,
+			y: 33,
+			color: 'white',
+		}),
+		color: '#ff6666',
+		x: 630,
+		y: 10,
+		w: 118,
+		h: 35,
+		click: (p) => {
+			if (p.x < playAudioButton.x || 
+				p.x > playAudioButton.x + playAudioButton.w || 
+				p.y < playAudioButton.y ||
+				p.y > playAudioButton.y + playAudioButton.h) {
+				return;
+			}
+			if (playingAudio) {
+				playAudioButton.label.text = 'Play Audio';
+				playingAudio = false;
+			} else {
+				playAudioButton.label.text = 'Stop Audio';
+				playingAudio = true;
+			}
+		}
+	});
+	const damageOverlay = new DamageOverlay({
+		w: canvas.width,
+		h: canvas.height,
+		len: 100,
+		cooldown: 0,
+	});
+	const deadLabel = new DeadLabel({
+		text: 'You have died!',
+		width: 1000,
+		y: 250,
+	});
+	const playAgainButton = new Button({
+		label: new Label({
+			text: 'Play Again',
+			font: '28px Arial',
+			x: 430,
+			y: 300,
+			color: 'white',
+		}),
+		color: '#8888ff',
+		x: 422,
+		y: 270,
+		w: 150,
+		h: 40,
+		click: (p) => {
+			if (p.x < playAgainButton.x || 
+				p.x > playAgainButton.x + playAgainButton.w || 
+				p.y < playAgainButton.y ||
+				p.y > playAgainButton.y + playAgainButton.h) {
+				return;
+			}
+			dead = false;
+			healthBar.value = PLAYER_INIT_HEALTH;
+			levelIdx = levels.length-1;
+			nextLevel();
+			damageOverlay.cooldown = 0;
+			gliderKills.count = 0;
+		}
+	});
 
 	// Actors
 	let humbers = [];
@@ -534,6 +737,8 @@ window.addEventListener('load', e => {
 	const faces = [];
 
 	// Keyboard
+	// We don't necessarily have to init every key that is paid attention to
+	// For example 'p': pause
 	const keyDownMap = {
 		w: false,
 		a: false,
@@ -595,6 +800,7 @@ window.addEventListener('load', e => {
 	let paused = false;
 	let projCooldown = 0;
 	let dead = false;
+	let playingAudio = true;
 
 	function animate(time) {
 		if (!isLoaded()) {
@@ -864,9 +1070,14 @@ window.addEventListener('load', e => {
 						if (healthBar.value == 0) {
 							dead = true;
 						}
+						// Display to user
+						damageOverlay.cooldown = 20;
 					}
 				}
 			}
+
+			// Tick damage overlay
+			damageOverlay.tick();
 
 			// Housekeeping
 			if (projCooldown > 0) projCooldown--;
@@ -937,6 +1148,7 @@ window.addEventListener('load', e => {
 		ctx.lineTo(canvas.width/2+15, canvas.height/2);
 		ctx.stroke();
 
+		damageOverlay.draw(ctx); // should go first
 		speedBar.draw(ctx);
 		healthBar.draw(ctx);
 		humberList.draw(ctx);
@@ -945,6 +1157,12 @@ window.addEventListener('load', e => {
 		levelLabel.draw(ctx);
 		nextLevelButton.draw(ctx);
 		pauseButton.draw(ctx);
+		playAudioButton.draw(ctx);
+
+		if (dead) {
+			deadLabel.draw(ctx);
+			playAgainButton.draw(ctx);
+		}
 	}
 
 	renderer.setAnimationLoop(animate);
@@ -973,20 +1191,30 @@ window.addEventListener('load', e => {
 
 	canvas.addEventListener('click', e => {
 		const p = {x: e.offsetX, y: e.offsetY};
-		nextLevelButton.click(p);
 		pauseButton.click(p);
+		playAudioButton.click(p);
+		if (dead) {
+			playAgainButton.click(p);
+		} else {
+			nextLevelButton.click(p);
+		}
 	});
 
 	canvas.addEventListener('mousemove', e => {
 		const p = {x: e.offsetX, y: e.offsetY};
 		nextLevelButton.mousemove(p);
 		pauseButton.mousemove(p);
+		playAudioButton.mousemove(p);
+		if (dead) {
+			playAgainButton.mousemove(p);
+		}
 	});
 
 	canvas.addEventListener('mouseout', () => {
 		nextLevelButton.mouseout();
 		pauseButton.mouseout();
-
+		playAudioButton.mouseout();
+		playAgainButton.mouseout();
 	});
 
 });

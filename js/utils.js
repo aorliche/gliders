@@ -1,4 +1,4 @@
-export { $, $$, randInt, randFloat, rotateAboutPoint };
+export { $, $$, randInt, randFloat, chooseRandom, rotateAboutPoint };
 
 const $ = q => document.querySelector(q);
 const $$ = q => [...document.querySelectorAll(q)];
@@ -34,4 +34,8 @@ function randInt(from, to) {
 function randFloat(from, to) {
 	const diff = to-from+1;
 	return from + Math.random()*diff;
+}
+
+function chooseRandom(array) {
+	return array[randInt(0, array.length-1)];
 }
