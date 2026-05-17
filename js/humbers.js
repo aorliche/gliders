@@ -3,6 +3,7 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 import { STLLoader } from 'three/addons/loaders/STLLoader.js';
 import { $, $$, rotateAboutPoint, randInt, randFloat, chooseRandom } from './utils.js';
 import { Label, Bar, HumberList, CounterLabel, Button, DamageOverlay } from './hud.js';
+import { Sounds } from './sounds.js';
 
 // Constants
 const HUMBER_SPIN_DIV = 400;
@@ -486,6 +487,12 @@ const levels = [
 ];
 
 window.addEventListener('load', e => {
+	// Load sounds
+	const sounds = new Sounds();
+	sounds.load('blaster', './../sound/blaster.wav');
+	sounds.load('explosion', './../sound/explosion.wav');
+	sounds.load('grunt', './../sound/grunt.ogg');
+
 	// Load geometries
 	const loader = new STLLoader();
 	let numModels = 0;
@@ -899,6 +906,8 @@ window.addEventListener('load', e => {
 					h.mesh.geometry.dispose();
 					h.mesh.material.dispose();
 					h.mesh.parent.remove(h.mesh);
+					// Play sound
+					sounds.play('explosion');
 					// Create another humber
 					const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
 					humbers.push(humb);
@@ -923,6 +932,8 @@ window.addEventListener('load', e => {
 					f.mesh.geometry.dispose();
 					f.mesh.material.dispose();
 					f.mesh.parent.remove(f.mesh);
+					// Play sound
+					sounds.play('explosion');
 					// Create another face
 					const face = new PigFace(
 						geometries, 
@@ -960,8 +971,10 @@ window.addEventListener('load', e => {
 						scene,
 					);
 					gliders.push(glider);
-						continue;
-					}
+					// Explode
+					sounds.play('explosion');
+					continue;
+				}
 				// Fire if facing player
 				// Glider forward unit vector
 				const gliderFwd = g.forwardMesh.position.clone();
@@ -994,6 +1007,8 @@ window.addEventListener('load', e => {
 						);
 						projectiles.push(proj);
 						g.cooldown = GLIDER_COOLDOWN;
+						// play sound
+						sounds.play('blaster');
 					}
 				} else {
 					g.attacking = false;
@@ -1072,6 +1087,8 @@ window.addEventListener('load', e => {
 						}
 						// Display to user
 						damageOverlay.cooldown = 20;
+						// Sound
+						sounds.play('grunt');
 					}
 				}
 			}
@@ -1118,6 +1135,8 @@ window.addEventListener('load', e => {
 					const proj = new Projectile(cameraDown, projTickVec, scene, true);
 					projectiles.push(proj);
 					projCooldown = PROJ_COOLDOWN;
+					// Play blaster
+					sounds.play('blaster');
 				}
 			}
 
