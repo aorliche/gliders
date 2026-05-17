@@ -491,7 +491,7 @@ window.addEventListener('load', e => {
 	const sounds = new Sounds();
 	sounds.load('blaster', './../sound/blaster.wav');
 	sounds.load('explosion', './../sound/explosion.wav');
-	sounds.load('grunt', './../sound/grunt.ogg');
+	sounds.load('crash', './../sound/crash.mp3');
 
 	// Load geometries
 	const loader = new STLLoader();
@@ -907,7 +907,9 @@ window.addEventListener('load', e => {
 					h.mesh.material.dispose();
 					h.mesh.parent.remove(h.mesh);
 					// Play sound
-					sounds.play('explosion');
+					if (playingAudio) {
+						sounds.play('explosion');
+					}
 					// Create another humber
 					const humb = levels[levelIdx].spawnerFn(humbers, geometries, scene);
 					humbers.push(humb);
@@ -933,7 +935,9 @@ window.addEventListener('load', e => {
 					f.mesh.material.dispose();
 					f.mesh.parent.remove(f.mesh);
 					// Play sound
-					sounds.play('explosion');
+					if (playingAudio) {
+						sounds.play('explosion');
+					}
 					// Create another face
 					const face = new PigFace(
 						geometries, 
@@ -972,7 +976,9 @@ window.addEventListener('load', e => {
 					);
 					gliders.push(glider);
 					// Explode
-					sounds.play('explosion');
+					if (playingAudio) {
+						sounds.play('explosion');
+					}
 					continue;
 				}
 				// Fire if facing player
@@ -1008,7 +1014,9 @@ window.addEventListener('load', e => {
 						projectiles.push(proj);
 						g.cooldown = GLIDER_COOLDOWN;
 						// play sound
-						sounds.play('blaster');
+						if (playingAudio) {
+							sounds.play('blaster');
+						}
 					}
 				} else {
 					g.attacking = false;
@@ -1088,7 +1096,9 @@ window.addEventListener('load', e => {
 						// Display to user
 						damageOverlay.cooldown = 20;
 						// Sound
-						sounds.play('grunt');
+						if (playingAudio) {
+							sounds.play('crash');
+						}
 					}
 				}
 			}
@@ -1136,7 +1146,9 @@ window.addEventListener('load', e => {
 					projectiles.push(proj);
 					projCooldown = PROJ_COOLDOWN;
 					// Play blaster
-					sounds.play('blaster');
+					if (playingAudio) {
+						sounds.play('blaster');
+					}
 				}
 			}
 
